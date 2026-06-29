@@ -1,0 +1,40 @@
+include PACKAGE_README.md
+include pyproject.toml
+exclude README.md
+
+graft python/td_ts_compressor
+graft package_docs
+graft tests
+
+prune .agents
+prune .git
+prune .pytest_cache
+prune .uv-cache
+prune .venv
+prune docs
+prune notebooks
+prune scripts
+prune sql
+prune src
+prune python/td_ts_compressor.egg-info
+
+global-exclude __pycache__/*
+global-exclude *.py[cod]
+global-exclude *.egg-info/*
+global-exclude *.csv
+global-exclude *.tsv
+global-exclude *.jsonl
+global-exclude *.parquet
+global-exclude *.feather
+global-exclude *.pkl
+global-exclude *.pickle
+global-exclude *.db
+global-exclude *.sqlite
+global-exclude *.sqlite3
+global-exclude *.duckdb
+global-exclude *.ipynb
+global-exclude *.html
+global-exclude *.png
+global-exclude *.jpg
+global-exclude *.jpeg
+global-exclude *.gif
