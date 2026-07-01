@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from pathlib import Path
 import re
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_$#]*$")
@@ -115,6 +115,28 @@ def qualified_table_name(table_name: str, schema_name: str | None = None) -> str
     return quote_identifier(table_name)
 
 
+def _source_count(table_name: str | None, input_query: str | None) -> int:
+    return sum(value is not None for value in (table_name, input_query))
+
+
+def source_sql(
+    *,
+    table_name: str | None = None,
+    schema_name: str | None = None,
+    input_query: str | None = None,
+) -> str:
+    """Return a FROM source for a table, view, or SQL query."""
+
+    if _source_count(table_name, input_query) != 1:
+        raise ValueError("provide exactly one of table_name or input_query")
+    if schema_name and not table_name:
+        raise ValueError("schema_name requires table_name")
+
+    if table_name:
+        return qualified_table_name(table_name, schema_name)
+    return f"(\n{input_query}\n        ) AS source_query"
+
+
 def input_projection_sql(
     *,
     table_name: str | None = None,
@@ -125,15 +147,21 @@ def input_projection_sql(
 ) -> str:
     """Build the schema-preserving ON subquery with metadata placeholders."""
 
-    if bool(table_name) == bool(input_query):
-        raise ValueError("provide exactly one of table_name or input_query")
-    if schema_name and not table_name:
-        raise ValueError("schema_name requires table_name")
-
     selected_columns = spec.ordered_columns(columns)
-    projection = [
-        f"            {quote_identifier(column)}" for column in selected_columns
-    ]
+    compact_numeric_projection = (
+        len(selected_columns) == len(spec.id_columns) + 2
+        and selected_columns == [*spec.id_columns, spec.time_column, spec.value_column]
+        and spec.time_type.lower() == "numeric"
+    )
+    projection = []
+    for column in selected_columns:
+        identifier = quote_identifier(column)
+        if compact_numeric_projection and column == spec.time_column:
+            projection.append(f"            CAST({identifier} AS BIGINT) AS {identifier}")
+        elif compact_numeric_projection and column == spec.value_column:
+            projection.append(f"            CAST({identifier} AS FLOAT) AS {identifier}")
+        else:
+            projection.append(f"            {identifier}")
     projection.extend(
         [
             "            CAST(NULL AS INTEGER) AS compression_importance",
@@ -141,12 +169,13 @@ def input_projection_sql(
         ]
     )
 
-    if table_name:
-        source_sql = qualified_table_name(table_name, schema_name)
-    else:
-        source_sql = f"(\n{input_query}\n        ) AS source_query"
+    source = source_sql(
+        table_name=table_name,
+        schema_name=schema_name,
+        input_query=input_query,
+    )
 
-    return "(\n        SELECT\n" + ",\n".join(projection) + f"\n        FROM {source_sql}\n    )"
+    return "(\n        SELECT\n" + ",\n".join(projection) + f"\n        FROM {source}\n    )"
 
 
 def compression_sql(
@@ -162,18 +191,22 @@ def compression_sql(
     """Return a SELECT statement that invokes the compressor mapping."""
 
     params = parameters or CompressionParameters()
+    selected_columns = spec.ordered_columns(columns)
     on_sql = input_projection_sql(
         table_name=table_name,
         schema_name=schema_name,
         input_query=input_query,
         spec=spec,
-        columns=columns,
+        columns=selected_columns,
     )
     partition_cols = ", ".join(quote_identifier(c) for c in spec.id_columns)
     using_lines = [
         _using_clause("id_columns", spec.id_column_csv),
+        _using_clause("id_column_count", len(spec.id_columns)),
         _using_clause("time_column", spec.time_column),
         _using_clause("value_column", spec.value_column),
+        _using_clause("time_column_index", selected_columns.index(spec.time_column)),
+        _using_clause("value_column_index", selected_columns.index(spec.value_column)),
         _using_clause("time_unit", spec.time_unit),
         _using_clause("time_type", spec.time_type),
         *params.using_lines(),
@@ -192,31 +225,44 @@ FROM {qualified_table_name(spec.mapping_name, compressor_database)}
 
 def feature_sql(
     *,
-    table_name: str,
+    table_name: str | None = None,
     schema_name: str | None = None,
+    input_query: str | None = None,
     compressor_database: str | None = None,
     spec: CompressorSpec,
     parameters: CompressionParameters | None = None,
     columns: Sequence[str] | None = None,
     top_k_distances: int = 0,
+    label_column: str | None = None,
+    label_value: object | None = None,
 ) -> str:
     """Build SQL feature engineering around compressed rows."""
+
+    if (label_column is None) != (label_value is None):
+        raise ValueError("label_column and label_value must be provided together")
 
     compressed = compression_sql(
         table_name=table_name,
         schema_name=schema_name,
+        input_query=input_query,
         compressor_database=compressor_database,
         spec=spec,
         parameters=parameters,
         columns=columns,
     )
     ids = [quote_identifier(column) for column in spec.id_columns]
-    id_select = ",\n    ".join(f"c.{column}" for column in ids)
+    select_lines = []
+    if label_column is not None:
+        select_lines.append(
+            f"{quote_literal(label_value)} AS {quote_identifier(label_column)}"
+        )
+    select_lines.extend(f"c.{column}" for column in ids)
+    id_select = ",\n    ".join(select_lines)
     original_select = ", ".join(ids)
     join_predicate = " AND\n  ".join(
         f"c.{column} = o.{column}" for column in ids
     )
-    group_by_count = len(ids) + 1
+    group_by_count = len(select_lines) + 1
     group_by = ", ".join(str(i) for i in range(1, group_by_count + 1))
     top_k = ""
     if top_k_distances < 0:
@@ -228,27 +274,131 @@ def feature_sql(
             for i in range(1, top_k_distances + 1)
         )
 
-    return f"""WITH compressed AS (
-{compressed}
-),
-original_counts AS (
-    SELECT {original_select}, COUNT(*) AS original_points
-    FROM {qualified_table_name(table_name, schema_name)}
-    GROUP BY {original_select}
-)
-SELECT
+    source = source_sql(
+        table_name=table_name,
+        schema_name=schema_name,
+        input_query=input_query,
+    )
+
+    return f"""SELECT
     {id_select},
     o.original_points,
     COUNT(*) AS remaining_points,
+    COUNT(*) AS compressed_points,
+    COUNT(*) / CAST(o.original_points AS FLOAT) AS retained_ratio,
+    100.0 * COUNT(*) / CAST(o.original_points AS FLOAT) AS retained_pct,
     o.original_points / CAST(COUNT(*) AS FLOAT) AS compression_ratio,
     100.0 * (1.0 - COUNT(*) / CAST(o.original_points AS FLOAT)) AS reduction_pct,
     MAX(c.compression_distance) AS max_selected_distance,
     AVG(c.compression_distance) AS avg_selected_distance,
     STDDEV_SAMP(c.compression_distance) AS std_selected_distance{top_k}
-FROM compressed AS c
-JOIN original_counts AS o
+FROM (
+{compressed}
+) AS c
+JOIN (
+    SELECT {original_select}, COUNT(*) AS original_points
+    FROM {source}
+    GROUP BY {original_select}
+) AS o
   ON {join_predicate}
 GROUP BY {group_by}"""
+
+
+def _feature_output_columns(
+    *,
+    spec: CompressorSpec,
+    top_k_distances: int = 0,
+    label_column: str | None = None,
+) -> list[str]:
+    columns = []
+    if label_column is not None:
+        columns.append(label_column)
+    columns.extend(spec.id_columns)
+    columns.extend(
+        [
+            "original_points",
+            "remaining_points",
+            "compressed_points",
+            "retained_ratio",
+            "retained_pct",
+            "compression_ratio",
+            "reduction_pct",
+            "max_selected_distance",
+            "avg_selected_distance",
+            "std_selected_distance",
+        ]
+    )
+    columns.extend(f"distance_rank_{rank}" for rank in range(1, top_k_distances + 1))
+    return columns
+
+
+def _order_by_positions(
+    order_by: Sequence[str | int],
+    output_columns: Sequence[str],
+) -> str:
+    positions = []
+    for item in order_by:
+        if isinstance(item, int):
+            positions.append(str(item))
+            continue
+        if item.isdigit():
+            positions.append(item)
+            continue
+        try:
+            positions.append(str(output_columns.index(item) + 1))
+        except ValueError as exc:
+            raise ValueError(
+                f"order_by column {item!r} is not in the feature output columns"
+            ) from exc
+    return ", ".join(positions)
+
+
+def features_by_mode_sql(
+    *,
+    modes: Mapping[str, CompressionParameters],
+    table_name: str | None = None,
+    schema_name: str | None = None,
+    input_query: str | None = None,
+    compressor_database: str | None = None,
+    spec: CompressorSpec,
+    columns: Sequence[str] | None = None,
+    top_k_distances: int = 0,
+    mode_column: str = "mode",
+    order_by: str | Sequence[str | int] | None = None,
+) -> str:
+    """Build feature SQL for several parameter modes and combine the results."""
+
+    if not modes:
+        raise ValueError("modes must contain at least one entry")
+
+    mode_queries = [
+        feature_sql(
+            table_name=table_name,
+            schema_name=schema_name,
+            input_query=input_query,
+            compressor_database=compressor_database,
+            spec=spec,
+            parameters=parameters,
+            columns=columns,
+            top_k_distances=top_k_distances,
+            label_column=mode_column,
+            label_value=mode_name,
+        )
+        for mode_name, parameters in modes.items()
+    ]
+    sql = "\nUNION ALL\n".join(mode_queries)
+    if order_by:
+        if isinstance(order_by, str):
+            order_by_sql = order_by
+        else:
+            output_columns = _feature_output_columns(
+                spec=spec,
+                top_k_distances=top_k_distances,
+                label_column=mode_column,
+            )
+            order_by_sql = _order_by_positions(order_by, output_columns)
+        sql += f"\nORDER BY {order_by_sql}"
+    return sql
 
 
 def register_sql(
@@ -283,8 +433,11 @@ FOR {function_name}
 USING
     InputTable IN TABLE,
     id_columns,
+    id_column_count,
     time_column,
     value_column,
+    time_column_index,
+    value_column_index,
     time_unit,
     time_type,
     distance_max,
@@ -314,12 +467,10 @@ def td_plot_sql(
 
     series_id = ", ".join(quote_identifier(column) for column in spec.id_columns)
     title = title or f"{spec.value_column} compressed"
-    plot_table_name = (
-        f"{schema_name}.{table_name}" if schema_name else table_name
-    )
+    plot_table_name = qualified_table_name(table_name, schema_name)
     return f"""EXECUTE FUNCTION TD_PLOT(
     SERIES_SPEC(
-        TABLE_NAME({quote_literal(plot_table_name)}),
+        TABLE_NAME({plot_table_name}),
         ROW_AXIS(TIMECODE({quote_identifier(spec.time_column)})),
         SERIES_ID({series_id}),
         PAYLOAD(FIELDS({quote_identifier(spec.value_column)}), CONTENT(REAL))

@@ -26,13 +26,14 @@ from td_ts_compressor import TeradataTimeSeriesCompressor
 
 compressor = TeradataTimeSeriesCompressor(
     spec,
-    compressor_database="utility_db",
+    operator_database="utility_db",
 )
 ```
 
-`compressor_database` is the database where the table operator function mapping
-is installed. Source tables can live elsewhere and are addressed with
-`schema_name` plus `table_name`.
+`operator_database` is the database where the table operator function mapping
+is installed. Source tables and views can live elsewhere and are addressed with
+`data_database` plus `table_name`. For derived sources, pass `input_query=...`
+or `dataframe=...` instead.
 
 ## Recipes
 
@@ -42,7 +43,7 @@ Use `visual_fidelity` before plotting or dashboarding:
 from td_ts_compressor import visual_fidelity
 
 sql = compressor.compress(
-    schema_name="analytics",
+    data_database="analytics",
     table_name="signal_series",
     parameters=visual_fidelity(width_px=1024, height_px=768),
     as_dataframe=False,
@@ -55,7 +56,7 @@ Use `analytical_points` when the selected rows are analytical results:
 from td_ts_compressor import analytical_points
 
 sql = compressor.compress(
-    schema_name="analytics",
+    data_database="analytics",
     table_name="signal_series",
     parameters=analytical_points(auto_log_drop=1.5),
     as_dataframe=False,
@@ -68,7 +69,7 @@ Use `fixed_budget` when each series needs a predictable maximum count:
 from td_ts_compressor import fixed_budget
 
 sql = compressor.compress(
-    schema_name="analytics",
+    data_database="analytics",
     table_name="signal_series",
     parameters=fixed_budget(n_max=80),
     as_dataframe=False,
@@ -83,7 +84,7 @@ connection layer.
 
 ```python
 query = compressor.features(
-    schema_name="analytics",
+    data_database="analytics",
     table_name="signal_series",
     top_k_distances=5,
     as_dataframe=False,
@@ -95,9 +96,12 @@ query = compressor.features(
 ```python
 statements = compressor.install_table_operator_sql(
     target_database="utility_db",
-    c_source_path="./src/ts_compress_to.c",
 )
 ```
 
 `install_table_operator()` executes those statements through
 `teradataml.execute_sql`.
+
+The package bundles the `ts_compress_to.c` source file used for installation.
+Pass `c_source_path=...` only when you want to install a modified local source
+file.

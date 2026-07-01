@@ -41,4 +41,7 @@ Run these before creating a release:
 ```
 
 The distribution manifest excludes repository notebooks, generated assets,
-local data, SQL scripts, C source files, and broader project documentation.
+local data, SQL scripts, the broader `src/` tree, and broader project
+documentation. It includes only the package modules and the bundled
+`td_ts_compressor.resources/ts_compress_to.c` operator source needed by the
+installation helper.

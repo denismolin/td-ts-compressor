@@ -5,7 +5,11 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+*.whl
+*.tar.gz
 .ipynb_checkpoints/
 *.o
 *.so
 *.dll
+AGENTS.md
+.agents/
