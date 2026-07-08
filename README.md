@@ -13,7 +13,7 @@ The `ts_compress_to` operator keeps endpoints, stretches geometry with `tol_x`
 and `tol_y`, then repeatedly selects the global farthest point by perpendicular
 distance to its active segment. The animation also shows the stretched-space
 tolerance ball, feature engineering from compressed rows, plateau and peak
-detection, and pixel-density-aware visualization at large scale.
+detection, pixel-density-aware visualization at large scale, and Teradata parallel processing across many series into downstream workflows.
 
 <p align="center">
   <video src="docs/assets/ts_compress_algorithm.mp4" controls width="760" title="ts_compress_to algorithm animation"></video>

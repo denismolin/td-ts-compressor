@@ -29,6 +29,7 @@ The animation demonstrates:
 - peak detection from compressed local maxima and prominence
 - feature engineering from compression counts, ratios, and distances
 - large-scale visualization using pixel-density-aware compression with the same occupied pixels
+- Teradata parallel processing across independent time-series partitions and downstream workflows
 
 Manim writes generated videos and frames under `docs/assets/manim_render/`.
 That render cache is ignored by git; only `docs/assets/ts_compress_algorithm.mp4`

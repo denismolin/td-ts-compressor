@@ -23,6 +23,7 @@ from manim import (
     Text,
     UP,
     VGroup,
+    VMobject,
     WHITE,
     YELLOW,
     Axes,
@@ -189,6 +190,7 @@ class TsCompressAlgorithm(Scene):
         self.show_peak_detection(title)
         self.show_feature_engineering(title)
         self.show_large_scale_visualization(title)
+        self.show_parallel_processing(title)
 
     def show_selection_sequence(self, title: Text) -> None:
         axes = Axes(
@@ -908,6 +910,164 @@ class TsCompressAlgorithm(Scene):
             FadeOut(arrow),
             FadeOut(arrow_tip),
             FadeOut(formula),
+        )
+
+    def show_parallel_processing(self, title: Text) -> None:
+        new_title = Text("Teradata: thousands of series in parallel", font_size=32).to_edge(UP)
+        self.play(Transform(title, new_title))
+
+        def box(center, width, height, color, fill_opacity=0.18):
+            x, y, _ = center
+            return Polygon(
+                [x - width / 2, y - height / 2, 0],
+                [x + width / 2, y - height / 2, 0],
+                [x + width / 2, y + height / 2, 0],
+                [x - width / 2, y + height / 2, 0],
+                color=color,
+                fill_color=color,
+                fill_opacity=fill_opacity,
+                stroke_width=2,
+            )
+
+        def mini_curve(origin, color, compressed=False):
+            x0, y0, _ = origin
+            points = [
+                [x0, y0, 0],
+                [x0 + 0.28, y0 + 0.10, 0],
+                [x0 + 0.55, y0 - 0.05, 0],
+                [x0 + 0.82, y0 + 0.16, 0],
+                [x0 + 1.10, y0 + 0.02, 0],
+            ]
+            if compressed:
+                points = [points[0], points[3], points[-1]]
+            curve = VMobject(color=color, stroke_width=2.6 if compressed else 1.9)
+            curve.set_points_as_corners(points)
+            curve.set_stroke(color=color, width=2.6 if compressed else 1.9)
+            return VGroup(
+                curve,
+                *[Dot(p, radius=0.024 if compressed else 0.014, color=color) for p in points],
+            )
+
+        input_title = Text("input table", font_size=21).shift(LEFT * 4.55 + UP * 2.05)
+        partition_note = Text("PARTITION BY series_id", font_size=17, color=GREEN).shift(LEFT * 4.55 + UP * 1.68)
+        order_note = Text("ORDER BY time", font_size=17, color=GREY_B).shift(LEFT * 4.55 + UP * 1.42)
+        input_box = box([-4.55, 0.0, 0], 2.25, 3.05, GREY_B, fill_opacity=0.05)
+        series = VGroup()
+        for i in range(12):
+            x_offset = -5.42 + (i % 2) * 1.02
+            y_offset = 1.05 - (i // 2) * 0.42
+            series.add(mini_curve([x_offset, y_offset, 0], GREY_B))
+        many_label = Text("x thousands", font_size=17, color=GREY_B).next_to(input_box, DOWN, buff=0.18)
+
+        amp_title = Text("parallel AMPs", font_size=21, color=BLUE).shift(UP * 2.05)
+        amp_boxes = VGroup()
+        amp_labels = VGroup()
+        amp_work = VGroup()
+        amp_y = [1.05, 0.35, -0.35, -1.05]
+        for i, y in enumerate(amp_y, start=1):
+            amp = box([0.0, y, 0], 2.65, 0.48, BLUE, fill_opacity=0.16)
+            amp_boxes.add(amp)
+            amp_labels.add(Text(f"AMP {i}", font_size=16, color=BLUE).move_to([-0.88, y, 0]))
+            amp_work.add(Text("ts_compress_to", font_size=15, color=YELLOW).move_to([0.35, y, 0]))
+        independent = Text("one partition -> one ordered series", font_size=17, color=GREEN).shift(DOWN * 1.72)
+
+        output_title = Text("compressed rows", font_size=21, color=YELLOW).shift(RIGHT * 4.45 + UP * 2.05)
+        output_box = box([4.45, 0.0, 0], 2.25, 3.05, YELLOW, fill_opacity=0.06)
+        outputs = VGroup()
+        for i in range(12):
+            x_offset = 3.58 + (i % 2) * 1.02
+            y_offset = 1.05 - (i // 2) * 0.42
+            outputs.add(mini_curve([x_offset, y_offset, 0], YELLOW, compressed=True))
+        smaller_label = Text("same shape, fewer rows", font_size=17, color=YELLOW).next_to(output_box, DOWN, buff=0.18)
+
+        arrows_in = VGroup(
+            *[Line([-3.25, y, 0], [-1.45, y, 0], color=GREEN, stroke_width=3) for y in amp_y]
+        )
+        arrows_out = VGroup(
+            *[Line([1.45, y, 0], [3.25, y, 0], color=GREEN, stroke_width=3) for y in amp_y]
+        )
+        arrow_tips = VGroup(
+            *[Polygon([-1.45, y, 0], [-1.68, y + 0.10, 0], [-1.68, y - 0.10, 0], color=GREEN, fill_color=GREEN, fill_opacity=1) for y in amp_y],
+            *[Polygon([3.25, y, 0], [3.02, y + 0.10, 0], [3.02, y - 0.10, 0], color=GREEN, fill_color=GREEN, fill_opacity=1) for y in amp_y],
+        )
+        note = Text(
+            "Independent partitions let Vantage process many long time series at once.",
+            font_size=20,
+        ).to_edge(DOWN)
+
+        self.play(FadeIn(input_title), FadeIn(partition_note), FadeIn(order_note), Create(input_box), FadeIn(series), FadeIn(many_label), FadeIn(note))
+        self.play(Create(arrows_in), FadeIn(arrow_tips[:4]), FadeIn(amp_title), Create(amp_boxes), FadeIn(amp_labels), FadeIn(amp_work))
+        for work in amp_work:
+            self.play(Indicate(work, color=YELLOW), run_time=0.35)
+        self.play(FadeIn(independent))
+        final_note = Text(
+            "The algorithm stays partition-local; Teradata supplies the parallelism.",
+            font_size=20,
+        ).to_edge(DOWN)
+        self.play(Transform(note, final_note), Create(arrows_out), FadeIn(arrow_tips[4:]), FadeIn(output_title), Create(output_box), FadeIn(outputs), FadeIn(smaller_label))
+        self.wait(0.6)
+
+        app_title = Text("compressed rows serve multiple workflows", font_size=22, color=YELLOW).shift(DOWN * 2.05)
+        app_centers = [[-3.85, -2.85, 0], [0.0, -2.85, 0], [3.85, -2.85, 0]]
+        app_boxes = VGroup(
+            box(app_centers[0], 3.05, 0.72, GREEN, fill_opacity=0.14),
+            box(app_centers[1], 3.05, 0.72, ORANGE, fill_opacity=0.14),
+            box(app_centers[2], 3.05, 0.72, BLUE, fill_opacity=0.14),
+        )
+        app_labels = VGroup(
+            Text("feature engineering\nanomaly detection, forecast", font_size=16, color=GREEN).move_to(app_centers[0]),
+            Text("pattern detection\nplateaus, peaks, events", font_size=16, color=ORANGE).move_to(app_centers[1]),
+            Text("faster visualization\nTD_PLOT, dashboards", font_size=16, color=BLUE).move_to(app_centers[2]),
+        )
+        app_arrows = VGroup(
+            *[Line([4.45, -1.65, 0], [center[0], -2.46, 0], color=YELLOW, stroke_width=2.6) for center in app_centers]
+        )
+        app_arrow_tips = VGroup(
+            *[
+                Polygon(
+                    [center[0], -2.46, 0],
+                    [center[0] - 0.11, -2.30, 0],
+                    [center[0] + 0.11, -2.30, 0],
+                    color=YELLOW,
+                    fill_color=YELLOW,
+                    fill_opacity=1,
+                )
+                for center in app_centers
+            ]
+        )
+        workflow_note = Text(
+            "One compressed table can feed ML features, SQL pattern rules, and visual exploration.",
+            font_size=20,
+        ).to_edge(DOWN)
+        self.play(Transform(note, workflow_note), FadeIn(app_title), Create(app_arrows), FadeIn(app_arrow_tips), FadeIn(app_boxes), FadeIn(app_labels))
+        for app_box in app_boxes:
+            self.play(Indicate(app_box, color=YELLOW), run_time=0.35)
+        self.wait(1.0)
+        self.play(
+            FadeOut(input_title),
+            FadeOut(partition_note),
+            FadeOut(order_note),
+            FadeOut(input_box),
+            FadeOut(series),
+            FadeOut(many_label),
+            FadeOut(arrows_in),
+            FadeOut(arrows_out),
+            FadeOut(arrow_tips),
+            FadeOut(amp_title),
+            FadeOut(amp_boxes),
+            FadeOut(amp_labels),
+            FadeOut(amp_work),
+            FadeOut(independent),
+            FadeOut(output_title),
+            FadeOut(output_box),
+            FadeOut(outputs),
+            FadeOut(smaller_label),
+            FadeOut(app_title),
+            FadeOut(app_arrows),
+            FadeOut(app_arrow_tips),
+            FadeOut(app_boxes),
+            FadeOut(app_labels),
+            FadeOut(note),
             FadeOut(title),
         )
     def make_polyline(
