@@ -11,5 +11,9 @@ dist/
 *.o
 *.so
 *.dll
+media/
+docs/manim/media/
 AGENTS.md
 .agents/
+docs/assets/manim_render/
+

@@ -7,6 +7,19 @@ operator source and builds Teradata SQL for compression, feature engineering,
 installation, and `TD_PLOT` workflows. It does not include repository
 notebooks, generated images, local datasets, or project-level documentation.
 
+## Algorithm Animation
+
+The `ts_compress_to` operator keeps endpoints, stretches geometry with `tol_x`
+and `tol_y`, then repeatedly selects the global farthest point by perpendicular
+distance to its active segment. The animation also shows the stretched-space
+tolerance ball and how compressed segments feed plateau detection.
+
+<p align="center">
+  <video src="docs/assets/ts_compress_algorithm.mp4" controls width="760" title="ts_compress_to algorithm animation"></video>
+</p>
+
+[Download the MP4](docs/assets/ts_compress_algorithm.mp4)
+
 ## Install
 
 ```powershell
@@ -115,6 +128,16 @@ plot_sql = compressor.td_plot_sql(
 )
 ```
 
+## Render The Animation
+
+Regenerate the README video from the Manim scene:
+
+```powershell
+.\.venv\Scripts\python.exe -m manim -ql --media_dir docs/assets/manim_render docs/manim/ts_compress_algorithm.py TsCompressAlgorithm
+```
+
+Copy the final render from `docs/assets/manim_render/videos/ts_compress_algorithm/480p15/TsCompressAlgorithm.mp4` to `docs/assets/ts_compress_algorithm.mp4`. Use `-qh` instead of `-ql` for a slower 1080p export.
+
 ## Package Contents
 
 Distributed artifacts include only:
@@ -133,3 +156,4 @@ broader repository documentation.
 Publishing is configured through GitHub Actions and PyPI Trusted Publishing.
 See `package_docs/publishing.md` in the source distribution for the release
 process.
+
