@@ -26,6 +26,9 @@ The animation demonstrates:
 - `distance_max` as a stretched-space tolerance ball and segment tube
 - returned metadata columns: `compression_importance` and `compression_distance`
 - plateau detection from low-slope compressed segments
+- peak detection from compressed local maxima and prominence
+- feature engineering from compression counts, ratios, and distances
+- large-scale visualization using pixel-density-aware compression with the same occupied pixels
 
 Manim writes generated videos and frames under `docs/assets/manim_render/`.
 That render cache is ignored by git; only `docs/assets/ts_compress_algorithm.mp4`
