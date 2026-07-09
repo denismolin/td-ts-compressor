@@ -16,10 +16,16 @@ tolerance ball, feature engineering from compressed rows, plateau and peak
 detection, pixel-density-aware visualization at large scale, and Teradata parallel processing across many series into downstream workflows.
 
 <p align="center">
-  <video src="docs/assets/ts_compress_algorithm.mp4" controls width="760" title="ts_compress_to algorithm animation"></video>
+  <a href="docs/assets/ts_compress_algorithm.mp4">
+    <img
+      src="docs/assets/ts_compress_algorithm_poster.png"
+      alt="ts_compress_to algorithm animation"
+      width="760"
+    />
+  </a>
 </p>
 
-[Download the MP4](docs/assets/ts_compress_algorithm.mp4)
+[Watch or download the MP4](docs/assets/ts_compress_algorithm.mp4)
 
 ## Install
 
