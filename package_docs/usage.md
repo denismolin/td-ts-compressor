@@ -94,13 +94,13 @@ query = compressor.features(
 ## Install The Table Operator
 
 ```python
-statements = compressor.install_table_operator_sql(
-    target_database="utility_db",
-)
+from td_ts_compressor import install_table_operator_sql
+
+statements = install_table_operator_sql(target_database="utility_db")
 ```
 
 `install_table_operator()` executes those statements through
-`teradataml.execute_sql`.
+`teradataml.execute_sql` without requiring a compressor instance.
 
 The package bundles the `ts_compress_to.c` source file used for installation.
 Pass `c_source_path=...` only when you want to install a modified local source

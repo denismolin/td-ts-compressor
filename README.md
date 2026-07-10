@@ -83,17 +83,17 @@ Source tables or views can live elsewhere and are addressed with
 Generate installation SQL for a target database:
 
 ```python
-install_sql = compressor.install_table_operator_sql(
-    target_database="utility_db",
-)
+from td_ts_compressor import install_table_operator_sql
+
+install_sql = install_table_operator_sql(target_database="utility_db")
 ```
 
 Or execute the installation through `teradataml.execute_sql`:
 
 ```python
-compressor.install_table_operator(
-    target_database="utility_db",
-)
+from td_ts_compressor import install_table_operator
+
+install_table_operator(target_database="utility_db")
 ```
 
 Pass `c_source_path=...` only when you want to install a modified local C

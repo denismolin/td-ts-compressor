@@ -4,6 +4,7 @@ from td_ts_compressor import (
     __version__,
     analytical_points,
     fixed_budget,
+    install_table_operator_sql,
     visual_fidelity,
 )
 from td_ts_compressor.core import bundled_c_source_path
@@ -11,7 +12,7 @@ from td_ts_compressor.sql import quote_identifier, quote_literal, register_sql
 
 
 def test_package_version_is_exported():
-    assert __version__ == "0.1.9"
+    assert __version__ == "0.1.10"
 
 
 def test_compression_sql_contains_operator_contract_columns():
@@ -543,6 +544,31 @@ def test_install_table_operator_sql_targets_database():
     assert statements[1].startswith(
         "REPLACE FUNCTION MAPPING utility_db.ts_compress_seq_to_map"
     )
+
+
+def test_module_install_table_operator_sql_does_not_need_compressor_instance():
+    statements = install_table_operator_sql(target_database="utility_db")
+
+    assert len(statements) == 2
+    assert statements[0].startswith("REPLACE FUNCTION utility_db.ts_compress_seq_to()")
+    assert "td_ts_compressor/resources/ts_compress_to.c" in statements[0].replace("\\", "/")
+    assert statements[1].startswith(
+        "REPLACE FUNCTION MAPPING utility_db.ts_compress_seq_to_map"
+    )
+
+
+def test_module_install_table_operator_sql_supports_custom_names():
+    statements = install_table_operator_sql(
+        target_database="utility_db",
+        function_name="my_compress_to",
+        mapping_name="my_compress_to_map",
+    )
+
+    assert statements[0].startswith("REPLACE FUNCTION utility_db.my_compress_to()")
+    assert statements[1].startswith(
+        "REPLACE FUNCTION MAPPING utility_db.my_compress_to_map"
+    )
+    assert "FOR utility_db.my_compress_to" in statements[1]
 
 
 def test_bundled_c_source_path_exists():

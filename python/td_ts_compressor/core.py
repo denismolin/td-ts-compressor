@@ -20,6 +20,48 @@ from .sql import (
 from .tdfs4ds import ProcessFeatureEngineeringArtifact, build_process_feature_engineering_artifact
 
 
+DEFAULT_FUNCTION_NAME = "ts_compress_seq_to"
+DEFAULT_MAPPING_NAME = "ts_compress_seq_to_map"
+
+
+def install_table_operator_sql(
+    *,
+    target_database: str | None,
+    c_source_path: str | Path | None = None,
+    function_name: str = DEFAULT_FUNCTION_NAME,
+    mapping_name: str = DEFAULT_MAPPING_NAME,
+) -> list[str]:
+    """Return SQL statements to install the table operator in a database."""
+
+    return register_sql(
+        c_source_path=c_source_path or bundled_c_source_path(),
+        target_database=target_database,
+        spec=_operator_install_spec(
+            function_name=function_name,
+            mapping_name=mapping_name,
+        ),
+    )
+
+
+def install_table_operator(
+    *,
+    target_database: str | None,
+    c_source_path: str | Path | None = None,
+    function_name: str = DEFAULT_FUNCTION_NAME,
+    mapping_name: str = DEFAULT_MAPPING_NAME,
+) -> None:
+    """Install the function and mapping through ``teradataml.execute_sql``."""
+
+    execute_sql = _teradataml_execute_sql()
+    for statement in install_table_operator_sql(
+        target_database=target_database,
+        c_source_path=c_source_path,
+        function_name=function_name,
+        mapping_name=mapping_name,
+    ):
+        execute_sql(statement)
+
+
 class TeradataTimeSeriesCompressor:
     """Pythonic wrapper for the ``ts_compress_to`` function mapping.
 
@@ -311,10 +353,11 @@ class TeradataTimeSeriesCompressor:
     ) -> list[str]:
         """Return SQL statements to install the operator in a database."""
 
-        return register_sql(
-            c_source_path=c_source_path or bundled_c_source_path(),
+        return install_table_operator_sql(
             target_database=target_database,
-            spec=self.spec,
+            c_source_path=c_source_path,
+            function_name=self.spec.function_name,
+            mapping_name=self.spec.mapping_name,
         )
 
     def install_table_operator(
@@ -325,22 +368,23 @@ class TeradataTimeSeriesCompressor:
     ) -> None:
         """Install the function and mapping through ``teradataml.execute_sql``."""
 
-        execute_sql = _teradataml_execute_sql()
-        for statement in self.install_table_operator_sql(
+        install_table_operator(
             target_database=target_database,
             c_source_path=c_source_path,
-        ):
-            execute_sql(statement)
+            function_name=self.spec.function_name,
+            mapping_name=self.spec.mapping_name,
+        )
 
     def register_sql(
         self,
         c_source_path: str | Path | None = None,
         target_database: str | None = None,
     ) -> list[str]:
-        return register_sql(
-            c_source_path=c_source_path or bundled_c_source_path(),
+        return install_table_operator_sql(
             target_database=target_database,
-            spec=self.spec,
+            c_source_path=c_source_path,
+            function_name=self.spec.function_name,
+            mapping_name=self.spec.mapping_name,
         )
 
     def register(
@@ -423,6 +467,20 @@ def bundled_c_source_path() -> Path:
         "ts_compress_to.c"
     )
     return Path(str(source))
+
+
+def _operator_install_spec(
+    *,
+    function_name: str,
+    mapping_name: str,
+) -> CompressorSpec:
+    return CompressorSpec(
+        id_columns=["series_id"],
+        time_column="seq_no",
+        value_column="y",
+        function_name=function_name,
+        mapping_name=mapping_name,
+    )
 
 
 def _teradataml_execute_sql():
