@@ -62,6 +62,47 @@ def install_table_operator(
         execute_sql(statement)
 
 
+def check_config(
+    *,
+    operator_database: str | None = None,
+    mapping_name: str = DEFAULT_MAPPING_NAME,
+) -> bool:
+    """Execute a three-point probe using the active teradataml connection.
+
+    Return True on success. Connection, missing mapping, and permission errors
+    propagate unchanged, including errors raised while fetching results. Reads
+    three dates from SYS_CALENDAR.CALENDAR; creates no database objects.
+    """
+
+    query = compression_sql(
+        input_query=(
+            "SELECT 1 AS series_id, day_of_calendar AS seq_no, "
+            "CAST(day_of_calendar AS FLOAT) AS y "
+            "FROM SYS_CALENDAR.CALENDAR "
+            "WHERE calendar_date BETWEEN DATE '2000-01-01' AND DATE '2000-01-03'"
+        ),
+        compressor_database=operator_database,
+        spec=CompressorSpec(
+            id_columns=["series_id"],
+            time_column="seq_no",
+            value_column="y",
+            time_type="numeric",
+            mapping_name=mapping_name,
+        ),
+        parameters=CompressionParameters(distance_max=-1, n_max=3),
+    )
+    cursor = _teradataml_execute_sql()(query)
+    try:
+        rows = cursor.fetchall()
+    finally:
+        cursor.close()
+    if len(rows) != 3:
+        raise RuntimeError(
+            f"Operator configuration check expected 3 rows, received {len(rows)}."
+        )
+    return True
+
+
 class TeradataTimeSeriesCompressor:
     """Pythonic wrapper for the ``ts_compress_to`` function mapping.
 
@@ -78,6 +119,14 @@ class TeradataTimeSeriesCompressor:
         self.spec = spec
         self.operator_database = operator_database or compressor_database
         self.compressor_database = self.operator_database
+
+    def check_config(self) -> bool:
+        """Check execution of this instance's operator database and mapping."""
+
+        return check_config(
+            operator_database=self.operator_database,
+            mapping_name=self.spec.mapping_name,
+        )
 
     def sql(
         self,

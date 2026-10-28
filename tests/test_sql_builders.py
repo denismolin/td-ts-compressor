@@ -12,7 +12,7 @@ from td_ts_compressor.sql import quote_identifier, quote_literal, register_sql
 
 
 def test_package_version_is_exported():
-    assert __version__ == "0.1.10"
+    assert __version__ == "0.1.11"
 
 
 def test_compression_sql_contains_operator_contract_columns():

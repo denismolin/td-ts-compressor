@@ -105,3 +105,21 @@ statements = install_table_operator_sql(target_database="utility_db")
 The package bundles the `ts_compress_to.c` source file used for installation.
 Pass `c_source_path=...` only when you want to install a modified local source
 file.
+
+### Check operator execution
+
+After establishing a teradataml connection, run a small execution probe:
+
+```python
+from td_ts_compressor import check_config
+
+check_config(operator_database="utility_db")  # True on success
+# Or use an existing instance's operator database and mapping:
+compressor.check_config()
+```
+
+The probe executes and fetches a three-point numeric series through the function
+mapping. It reads three dates from `SYS_CALENDAR.CALENDAR` and creates no database
+objects. Connection, missing mapping, and permission errors propagate unchanged.
+A successful check verifies the probe's execution; it does not validate access to
+application data tables. For a custom mapping, pass `mapping_name="custom_map"`.

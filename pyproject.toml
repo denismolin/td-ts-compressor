@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "td-ts-compressor"
-version = "0.1.10"
+version = "0.1.11"
 description = "Python helpers for the ts_compress_to Teradata time-series table operator."
 readme = "PACKAGE_README.md"
 requires-python = ">=3.10"
