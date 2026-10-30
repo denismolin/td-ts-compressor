@@ -415,6 +415,13 @@ def _feature_description(base_name: str, docs: Mapping[str, object]) -> str:
     }
     if base_name.startswith("distance_rank_"):
         rank = base_name.rsplit("_", 1)[-1]
+        if rank in {"1", "2"}:
+            endpoint = "first" if rank == "1" else "last"
+            return (
+                f"Residual distance of the {endpoint} endpoint with compression importance rank {rank} "
+                f"for each {series}. Always 0 when present because endpoints are retained "
+                "without a residual-distance calculation; NULL when this rank is absent."
+            )
         return (
             f"Residual distance of the selected point with compression importance rank {rank} "
             f"for each {series}."

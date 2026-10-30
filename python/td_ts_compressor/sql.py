@@ -44,6 +44,9 @@ class CompressionParameters:
 
     Values are serialized as Teradata string literals because the function
     mapping exposes the parameters in SQLTable style.
+
+    ``min_relative_gain`` and ``min_absolute_gain`` are accepted for compatibility
+    but have no effect in the bundled C operator.
     """
 
     distance_max: str | int | float = 1.0

@@ -389,6 +389,13 @@ def test_process_feature_engineering_builds_process_view_and_docs():
     assert "compression importance rank 2" in columns.loc[
         "ts_distance_rank_2", "BUSINESS_DESCRIPTION"
     ]
+    for rank, endpoint in ((1, "first"), (2, "last")):
+        description = columns.loc[
+            f"ts_distance_rank_{rank}", "BUSINESS_DESCRIPTION"
+        ]
+        assert f"{endpoint} endpoint" in description
+        assert "Always 0 when present" in description
+        assert "NULL when this rank is absent" in description
 
 
 def test_process_feature_engineering_can_override_series_description():

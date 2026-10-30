@@ -2,6 +2,12 @@
 
 Python helpers for the `ts_compress_to` Teradata Vantage table operator.
 
+`min_relative_gain` and `min_absolute_gain` are accepted parameters but have no
+effect in the bundled C operator. The generated `distance_rank_1` and
+`distance_rank_2` features correspond to the first and last endpoints, whose
+distances are always 0 when present. Missing ranks are NULL (for example,
+`distance_rank_2` for a one-point series).
+
 This package is intentionally small: it bundles the `ts_compress_to` C table
 operator source and builds Teradata SQL for compression, feature engineering,
 installation, and `TD_PLOT` workflows. It does not include repository
